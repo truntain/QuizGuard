@@ -1,13 +1,13 @@
 # 🛡️ QuizGuard
 
-> **Hệ thống tạo đề thi trắc nghiệm tự động từ tài liệu và giám sát thi trực tuyến**  
+> **Hệ thống tạo đề thi trắc nghiệm và giám sát thi trực tuyến**  
 > *Đề tài môn học IT4409 – Công nghệ Web và Dịch vụ trực tuyến (SOICT – ĐHBK Hà Nội)*
 
 ---
 
 ## 📌 Giới thiệu
 
-**QuizGuard** là nền tảng hỗ trợ giảng viên tạo đề thi trắc nghiệm nhanh chóng từ tài liệu bài giảng có sẵn (PDF, DOCX) nhờ **AI tạo sinh (Google Gemini)**, đồng thời tổ chức các phòng thi trực tuyến với cơ chế **giám sát hành vi gian lận theo thời gian thực** (phát hiện chuyển tab, thoát toàn màn hình, chặn copy/paste) mà không cần cài đặt phần mềm phụ trợ.
+**QuizGuard** là nền tảng hỗ trợ giảng viên quản lý ngân hàng câu hỏi, tạo đề thi trắc nghiệm nhanh chóng từ tài liệu bài giảng (PDF, DOCX), đồng thời tổ chức các phòng thi trực tuyến với cơ chế **giám sát hành vi gian lận theo thời gian thực** (phát hiện chuyển tab, thoát toàn màn hình, chặn copy/paste) mà không cần cài đặt phần mềm phụ trợ.
 
 Chi tiết về phân tích yêu cầu, thiết kế kiến trúc và cơ sở dữ liệu xem tại:  
 👉 **[Tài liệu phân tích & thiết kế hệ thống (Overview.md)](./Overview.md)**
@@ -16,7 +16,7 @@ Chi tiết về phân tích yêu cầu, thiết kế kiến trúc và cơ sở d
 
 ## 🚀 Tính năng chính
 
-- 🤖 **Sinh đề thông minh bằng AI:** Upload slide bài giảng, giáo trình để AI tự động trích xuất nội dung và sinh câu hỏi trắc nghiệm kèm giải thích chi tiết.
+- 📄 **Tạo & nhập đề từ tài liệu:** Hỗ trợ nhập và trích xuất câu hỏi từ file bài giảng (PDF, DOCX) hoặc quản lý trực tiếp qua giao diện.
 - 📚 **Ngân hàng câu hỏi & Đề thi:** Quản lý câu hỏi linh hoạt (đơn / đa đáp án, gắn tag, độ khó), trộn đề thi theo seed riêng cho từng thí sinh.
 - 🔑 **Phòng thi mã PIN:** Mở phòng thi nhanh chóng bằng mã PIN 6 số hoặc QR code, đồng hồ đếm ngược đồng bộ từ server.
 - 👁️ **Giám sát chống gian lận Realtime:** Bắt buộc toàn màn hình (Fullscreen), tự động phát hiện và ghi nhận hành vi chuyển tab (`visibilitychange`), mất focus (`blur`), chặn phím tắt và thao tác chuột phải/copy/paste.
@@ -32,8 +32,7 @@ Chi tiết về phân tích yêu cầu, thiết kế kiến trúc và cơ sở d
 | **Frontend** | [Next.js](https://nextjs.org/) (App Router, TypeScript, React), [Tailwind CSS](https://tailwindcss.com/), [Axios](https://axios-http.com/), [Socket.IO Client](https://socket.io/), [Chart.js](https://www.chartjs.org/) |
 | **Backend** | [NestJS](https://nestjs.com/) (Node.js framework, TypeScript), WebSockets Gateway, Task Scheduling (`@nestjs/schedule`) |
 | **Bảo mật** | JWT, Passport, Guards RBAC, Helmet, Throttler (Rate Limit), bcrypt |
-| **Cơ sở dữ liệu** | PostgreSQL / Prisma ORM (hoặc MongoDB) |
-| **Trí tuệ nhân tạo** | [Google Gemini API](https://ai.google.dev/) (`@google/generative-ai`) |
+| **Cơ sở dữ liệu** | **PostgreSQL** + [Prisma ORM](https://www.prisma.io/) |
 | **Xử lý tài liệu** | `pdf-parse`, `mammoth` |
 
 ---
@@ -49,7 +48,7 @@ QuizGuard/
 │   └── services/        # Gọi REST API
 ├── backend/             # RESTful API & WebSocket Gateway xây dựng bằng NestJS
 │   ├── src/
-│   │   ├── modules/     # Auth, Questions, AI, Exams, Rooms, Proctor, Reports...
+│   │   ├── modules/     # Auth, Questions, Exams, Rooms, Proctor, Reports...
 │   │   ├── common/      # Guards, Interceptors, Pipes, Filters
 │   │   └── jobs/        # Task cron jobs (tự nộp bài, đóng phòng)
 ├── Overview.md          # Đặc tả chi tiết phân tích & thiết kế kiến trúc hệ thống
@@ -62,6 +61,7 @@ QuizGuard/
 
 ### 1. Yêu cầu môi trường
 - [Node.js](https://nodejs.org/) (phiên bản v18 trở lên, khuyên dùng v20+)
+- [PostgreSQL](https://www.postgresql.org/) (cơ sở dữ liệu)
 - Trình quản lý gói `npm` (hoặc `pnpm` / `yarn`)
 
 ### 2. Cài đặt & chạy Frontend (Next.js)
