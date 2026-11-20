@@ -7,7 +7,7 @@
 
 ## 📌 Giới thiệu
 
-**QuizGuard** là nền tảng hỗ trợ giảng viên quản lý ngân hàng câu hỏi, tạo đề thi trắc nghiệm nhanh chóng từ tài liệu bài giảng (PDF, DOCX), đồng thời tổ chức các phòng thi trực tuyến với cơ chế **giám sát hành vi gian lận theo thời gian thực** (phát hiện chuyển tab, thoát toàn màn hình, chặn copy/paste) mà không cần cài đặt phần mềm phụ trợ.
+**QuizGuard** là nền tảng hỗ trợ giảng viên tạo đề thi trắc nghiệm nhanh chóng từ tài liệu bài giảng có sẵn nhờ **AI**, quản lý ngân hàng câu hỏi, đồng thời tổ chức các phòng thi trực tuyến với cơ chế **giám sát hành vi gian lận theo thời gian thực** (phát hiện chuyển tab, thoát toàn màn hình, chặn copy/paste) mà không cần cài đặt phần mềm phụ trợ.
 
 Chi tiết về phân tích yêu cầu, thiết kế kiến trúc và cơ sở dữ liệu xem tại:  
 👉 **[Tài liệu phân tích & thiết kế hệ thống (Overview.md)](./Overview.md)**
@@ -16,7 +16,7 @@ Chi tiết về phân tích yêu cầu, thiết kế kiến trúc và cơ sở d
 
 ## 🚀 Tính năng chính
 
-- 📄 **Tạo & nhập đề từ tài liệu:** Hỗ trợ nhập và trích xuất câu hỏi từ file bài giảng (PDF, DOCX) hoặc quản lý trực tiếp qua giao diện.
+- 🤖 **Sinh câu hỏi bằng AI từ tài liệu:** Giảng viên tải slide/giáo trình (PDF, DOCX, PPTX – không giới hạn dung lượng). Trình duyệt tự tách chữ, lọc và nén ảnh sơ đồ quan trọng, sau đó AI đa phương thức sinh câu hỏi nháp để giảng viên duyệt.
 - 📚 **Ngân hàng câu hỏi & Đề thi:** Quản lý câu hỏi linh hoạt (đơn / đa đáp án, gắn tag, độ khó), trộn đề thi theo seed riêng cho từng thí sinh.
 - 🔑 **Phòng thi mã PIN:** Mở phòng thi nhanh chóng bằng mã PIN 6 số hoặc QR code, đồng hồ đếm ngược đồng bộ từ server.
 - 👁️ **Giám sát chống gian lận Realtime:** Bắt buộc toàn màn hình (Fullscreen), tự động phát hiện và ghi nhận hành vi chuyển tab (`visibilitychange`), mất focus (`blur`), chặn phím tắt và thao tác chuột phải/copy/paste.
@@ -33,7 +33,8 @@ Chi tiết về phân tích yêu cầu, thiết kế kiến trúc và cơ sở d
 | **Backend** | [NestJS](https://nestjs.com/) (Node.js framework, TypeScript), WebSockets Gateway, Task Scheduling (`@nestjs/schedule`) |
 | **Bảo mật** | JWT, Passport, Guards RBAC, Helmet, Throttler (Rate Limit), bcrypt |
 | **Cơ sở dữ liệu** | **PostgreSQL** + [Prisma ORM](https://www.prisma.io/) |
-| **Xử lý tài liệu** | `pdf-parse`, `mammoth` |
+| **Trí tuệ nhân tạo** | AI đa phương thức (đọc được cả text và hình ảnh), ví dụ [Google Gemini API](https://ai.google.dev/) |
+| **Xử lý tài liệu** | Tại trình duyệt: `pdfjs-dist`, `mammoth`, `jszip`, Web Worker · Hàng đợi nền: BullMQ + Redis |
 
 ---
 
@@ -48,7 +49,7 @@ QuizGuard/
 │   └── services/        # Gọi REST API
 ├── backend/             # RESTful API & WebSocket Gateway xây dựng bằng NestJS
 │   ├── src/
-│   │   ├── modules/     # Auth, Questions, Exams, Rooms, Proctor, Reports...
+│   │   ├── modules/     # Auth, Questions, AI, Exams, Rooms, Proctor, Reports...
 │   │   ├── common/      # Guards, Interceptors, Pipes, Filters
 │   │   └── jobs/        # Task cron jobs (tự nộp bài, đóng phòng)
 ├── Overview.md          # Đặc tả chi tiết phân tích & thiết kế kiến trúc hệ thống

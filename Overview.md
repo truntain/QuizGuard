@@ -264,8 +264,8 @@ flowchart LR
 |---|---|
 | **Tác nhân** | Giảng viên, AI Service |
 | **Tiền điều kiện** | GV đã đăng nhập |
-| **Luồng chính** | 1. GV chọn "Tạo câu hỏi bằng AI".<br>2. GV upload file (PDF/DOCX/TXT, ≤ 10MB) hoặc dán văn bản.<br>3. GV cấu hình: số câu (5–50), độ khó (Dễ/TB/Khó/Trộn), loại câu (1 đáp án / nhiều đáp án), ngôn ngữ, chủ đề/tag.<br>4. Hệ thống trích xuất văn bản từ file.<br>5. Hệ thống gửi prompt + văn bản tới AI, yêu cầu trả về JSON theo schema.<br>6. Hệ thống validate JSON, hiển thị danh sách câu hỏi **ở trạng thái nháp**.<br>7. GV xem, sửa, xóa, sinh lại từng câu.<br>8. GV bấm "Lưu vào ngân hàng" → câu hỏi chuyển trạng thái `approved`. |
-| **Luồng thay thế** | 4a. File scan (ảnh) không trích được chữ → báo lỗi "Không đọc được nội dung, vui lòng dùng file có text".<br>5a. Tài liệu quá dài → hệ thống chia đoạn (chunk) và gọi AI nhiều lần.<br>6a. AI trả JSON sai định dạng → tự động thử lại tối đa 2 lần, sau đó báo lỗi. |
+| **Luồng chính** | 1. GV chọn "Tạo câu hỏi bằng AI".<br>2. GV chọn file (PDF/DOCX/PPTX/TXT, **không giới hạn dung lượng**) hoặc dán văn bản.<br>3. **Trình duyệt (Web Worker)** đọc file cục bộ từng trang: tách văn bản theo trang, lọc ảnh rác, nén ảnh sơ đồ/bảng/biểu đồ → tạo **gói tri thức** nhẹ (vài MB). File gốc **không** được gửi lên server.<br>4. GV xem tóm tắt (số trang, số ảnh giữ lại), chọn phạm vi chương/trang và cấu hình: số câu (5–50), độ khó (Dễ/TB/Khó/Trộn), loại câu, ngôn ngữ, tag.<br>5. Frontend gửi gói tri thức lên server; server tạo `AI_JOB` (`queued`) và trả về `jobId` ngay (202).<br>6. Worker nền chia chunk theo chương, gọi AI đa phương thức (text + ảnh) song song, validate JSON, lưu câu hỏi **ở trạng thái nháp**; tiến độ đẩy realtime qua Socket.IO.<br>7. GV xem, sửa, xóa, sinh lại từng câu (câu hỏi có thể kèm ảnh sơ đồ gốc).<br>8. GV bấm "Lưu vào ngân hàng" → câu hỏi chuyển trạng thái `approved`. |
+| **Luồng thay thế** | 3a. Trang PDF scan (không có lớp chữ) → render cả trang thành ảnh để AI tự OCR.<br>3b. File có mật khẩu / hỏng → báo lỗi ngay tại trình duyệt, không gửi lên server.<br>6a. Tài liệu quá dài → chia chunk (map-reduce), phân bổ số câu theo độ dài chunk.<br>6b. AI trả JSON sai định dạng → thử lại tối đa 2 lần mỗi chunk; nếu vẫn lỗi một số chunk → job `partial`, GV vẫn duyệt phần đã sinh.<br>6c. GV đóng tab sau khi gửi → job vẫn chạy nền, mở lại T07 để xem tiến độ. |
 | **Hậu điều kiện** | Câu hỏi được lưu vào ngân hàng câu hỏi của GV, gắn nguồn `source = AI` |
 
 #### UC14 – Tạo & cấu hình phòng thi PIN
@@ -329,13 +329,16 @@ flowchart LR
 ### 7.4. Module Sinh câu hỏi AI (AIGEN)
 | Mã | Chức năng | Mô tả | Ưu tiên |
 |---|---|---|:---:|
-| FR-AI-01 | Upload tài liệu | PDF, DOCX, TXT ≤ 10MB; hoặc dán văn bản | M |
-| FR-AI-02 | Trích xuất văn bản | `pdf-parse` (PDF), `mammoth` (DOCX) | M |
+| FR-AI-01 | Upload tài liệu | PDF, DOCX, PPTX, TXT **không giới hạn dung lượng**; hoặc dán văn bản | M |
+| FR-AI-02 | Trích xuất tại trình duyệt | Web Worker đọc từng trang: `pdfjs-dist` (PDF), `mammoth` (DOCX), `jszip` (PPTX); file gốc không gửi lên server | M |
+| FR-AI-10 | Giữ tri thức trong hình ảnh | Lọc ảnh rác (icon, logo, nền, ảnh lặp); nén ảnh sơ đồ/bảng về ≤ 1600px WebP; gửi kèm cho AI đa phương thức | M |
+| FR-AI-11 | Xử lý PDF scan | Trang không có lớp chữ → render thành ảnh để AI OCR | S |
+| FR-AI-12 | Xử lý nền & tiến độ realtime | Hàng đợi BullMQ, trả `jobId` ngay; đẩy `ai:progress`/`ai:done` qua Socket.IO; GV chọn phạm vi chương/trang | M |
 | FR-AI-03 | Cấu hình sinh đề | Số câu, độ khó, loại câu, ngôn ngữ | M |
 | FR-AI-04 | Gọi AI & validate | Prompt yêu cầu JSON schema; validate bằng Zod/Joi; retry ≤ 2 lần | M |
 | FR-AI-05 | Duyệt câu hỏi nháp | Xem, sửa, xóa, chọn lưu từng câu hoặc tất cả | M |
 | FR-AI-06 | Sinh lại 1 câu | Yêu cầu AI tạo lại một câu cụ thể | S |
-| FR-AI-07 | Chia nhỏ tài liệu dài | Chunk theo đoạn ~3.000 từ, phân bổ số câu theo chunk | S |
+| FR-AI-07 | Chia nhỏ tài liệu dài | Chunk theo chương (hoặc ~3.000 từ, chồng lấn 200 từ), gọi AI song song, gộp và loại câu trùng (map-reduce) | M |
 | FR-AI-08 | Lịch sử phiên sinh đề | Lưu file nguồn, cấu hình, số câu sinh ra | C |
 | FR-AI-09 | Giới hạn sử dụng | Mỗi GV tối đa N lượt/ngày (tránh tốn chi phí API) | S |
 
@@ -427,6 +430,7 @@ flowchart LR
 | NFR-01 | Hiệu năng | API CRUD phản hồi < 300ms (p95); autosave < 500ms; sự kiện vi phạm hiển thị trên dashboard GV < 2 giây |
 | NFR-02 | Tải đồng thời | Hỗ trợ ≥ 200 thí sinh đồng thời trong 1 phòng (quy mô lớp học HUST) |
 | NFR-03 | Thời gian sinh đề AI | 20 câu từ tài liệu ~10 trang < 60 giây, có thanh tiến trình |
+| NFR-03b | Tài liệu dung lượng lớn | Không giới hạn dung lượng file; dữ liệu gửi lên server chỉ là gói tri thức đã lọc/nén (thường < 10MB); server không nạp file gốc vào RAM; giao diện không bị đơ khi xử lý |
 | NFR-04 | Bảo mật – Xác thực | Mật khẩu hash bcrypt (cost 10); JWT ký HS256; refresh token httpOnly + SameSite |
 | NFR-05 | Bảo mật – Dữ liệu đề thi | **Không bao giờ gửi đáp án đúng xuống client** khi đang thi; chấm điểm ở server |
 | NFR-06 | Bảo mật – Web | Chống XSS (sanitize nội dung câu hỏi), chống SQL/NoSQL injection, Helmet, CORS whitelist, rate limit (đăng nhập, nhập PIN: 5 lần/phút) |
@@ -1165,34 +1169,136 @@ flowchart TD
 
 ## 14. LUỒNG NGHIỆP VỤ CHI TIẾT (SEQUENCE DIAGRAM)
 
-### 14.1. Sinh câu hỏi bằng AI từ tài liệu
+### 14.1. Sinh câu hỏi bằng AI từ tài liệu (Upload & xử lý tài liệu dung lượng lớn)
+
+> **Ý tưởng cốt lõi:** Không giới hạn dung lượng file, không bỏ sót tri thức trong hình ảnh. Phần xử lý nặng chạy **tại trình duyệt** (Web Worker): tách chữ, lọc và nén ảnh quan trọng → chỉ gửi **gói tri thức nhẹ (vài MB)** lên server → server xử lý **bất đồng bộ** bằng hàng đợi → AI đa phương thức sinh câu hỏi → báo kết quả realtime.
+
+#### 14.1.1. Kiến trúc pipeline
+
+```mermaid
+flowchart LR
+    subgraph BROWSER["Trình duyệt Giảng viên - Next.js"]
+        UI["T06: Upload và cấu hình"]
+        WK["Web Worker: pdf.js, mammoth, JSZip, OffscreenCanvas"]
+        PKG["Gói tri thức: text theo trang + ảnh nén WebP"]
+        UI --> WK --> PKG
+    end
+
+    subgraph BACKEND["Backend - NestJS"]
+        API["AiController: POST /ai/jobs"]
+        Q["Hàng đợi BullMQ"]
+        WRK["AiWorker: chunking, gọi AI, validate"]
+        GW["Socket.IO Gateway"]
+        API --> Q --> WRK
+        WRK --> GW
+    end
+
+    REDIS[("Redis")]
+    DB[("PostgreSQL")]
+    STORE[("Object Storage: ảnh đã nén")]
+    AI["Multimodal AI"]
+
+    PKG -- "HTTPS, vài MB" --> API
+    Q -.-> REDIS
+    API --> STORE
+    WRK --> DB
+    WRK -- "text + ảnh" --> AI
+    GW -- "ai:progress, ai:done" --> UI
+```
+
+#### 14.1.2. Xử lý tại trình duyệt (Client-side)
+
+```mermaid
+flowchart TD
+    A["Giảng viên chọn file: PDF, DOCX, PPTX - không giới hạn dung lượng"] --> B{"Loại file?"}
+    B -- PDF --> C["pdf.js đọc LẦN LƯỢT từng trang, không nạp cả file vào RAM"]
+    B -- DOCX --> D["mammoth: tách text + ảnh nhúng"]
+    B -- PPTX --> E["JSZip: đọc XML từng slide + thư mục media"]
+
+    C --> F["Với mỗi trang hoặc slide"]
+    D --> F
+    E --> F
+
+    F --> G["Tách text theo trang, giữ số trang làm nguồn trích dẫn"]
+    F --> H{"Trang có ảnh đáng kể?"}
+
+    H -- "Không" --> K["Chỉ giữ text"]
+    H -- "Có" --> I["Bộ lọc ảnh thông minh"]
+
+    I --> I1{"Ảnh rác? icon, logo, nền, viền, trùng lặp"}
+    I1 -- "Có" --> K
+    I1 -- "Không: sơ đồ, bảng, biểu đồ, ảnh code" --> J["OffscreenCanvas: resize tối đa 1600px, nén WebP chất lượng 80"]
+
+    G --> L{"Trang gần như không có text? - PDF scan"}
+    L -- "Có" --> M["Render cả trang thành ảnh 1600px để AI tự OCR"]
+    L -- "Không" --> K
+
+    J --> N["Gói tri thức"]
+    M --> N
+    K --> N
+    N --> O["Xem trước: số trang, số ảnh giữ lại, chọn chương hoặc trang"]
+    O --> P["Upload multipart lên Backend"]
+```
+
+**Quy tắc lọc ảnh rác:**
+
+| Quy tắc | Điều kiện loại bỏ | Lý do |
+|---|---|---|
+| Kích thước nhỏ | Cạnh dài < 150px | Icon, bullet, logo |
+| Tỷ lệ bất thường | Rộng/cao > 8 hoặc < 1/8 | Thanh kẻ, viền trang trí |
+| Lặp lại nhiều trang | Cùng hash ảnh xuất hiện ≥ 3 trang | Logo trường, header/footer template |
+| Ảnh nền | Phủ > 90% trang và trang vẫn có nhiều text | Background slide |
+| Đơn sắc | Độ lệch màu rất thấp | Khối màu trang trí |
+
+**Hiệu quả (ví dụ minh họa):** Slide PDF 1,2 GB, 120 trang, 300 ảnh 4K → text ~400 KB + 45 ảnh sơ đồ × ~80 KB ≈ **4 MB** gửi lên server.
+
+#### 14.1.3. Luồng end-to-end
 
 ```mermaid
 sequenceDiagram
     actor GV as Giảng viên
-    participant FE as Frontend (Next.js)
-    participant BE as Backend API
-    participant EX as Text Extractor
-    participant AI as Gemini API
-    participant DB as Database
+    participant FE as Next.js UI
+    participant WW as Web Worker
+    participant BE as NestJS API
+    participant ST as Object Storage
+    participant Q as BullMQ Redis
+    participant WK as AiWorker
+    participant AI as Multimodal AI
+    participant DB as PostgreSQL
+    participant WS as Socket.IO
 
-    GV->>FE: Chọn file PDF + cấu hình (20 câu, Trộn)
-    FE->>BE: POST /api/ai/jobs (multipart/form-data)
-    BE->>BE: Kiểm tra JWT, role=teacher, hạn mức AI
-    BE->>DB: Tạo AiJob(status=processing)
-    BE-->>FE: 202 Accepted {jobId}
-    FE->>BE: GET /api/ai/jobs/:jobId (polling 2s) hoặc nghe socket
-    BE->>EX: Trích xuất văn bản (pdf-parse / mammoth)
-    EX-->>BE: text (12.430 từ)
-    BE->>BE: Chia chunk ~3.000 từ, phân bổ số câu
-    loop Mỗi chunk
-        BE->>AI: Prompt + chunk + JSON schema
-        AI-->>BE: JSON câu hỏi
-        BE->>BE: Validate schema (Zod), lỗi thì retry tối đa 2 lần
-        BE->>DB: Lưu Question(status=draft, source=AI)
-        BE-->>FE: progress (n/N)
+    GV->>FE: Chọn file + cấu hình số câu, độ khó
+    FE->>WW: postMessage(file)
+    loop Từng trang
+        WW->>WW: Tách text, lọc và nén ảnh
+        WW-->>FE: progress trang i trên n
     end
-    BE->>DB: AiJob(status=done)
+    WW-->>FE: Gói tri thức text + ảnh WebP
+    GV->>FE: Chọn phạm vi chương, trang rồi bấm Sinh câu hỏi
+    FE->>BE: POST /api/ai/jobs (multipart, vài MB)
+    BE->>BE: Kiểm tra JWT, role teacher, hạn mức AI
+    BE->>ST: Lưu ảnh đã nén
+    BE->>DB: Tạo AI_JOB status queued
+    BE->>Q: add job
+    BE-->>FE: 202 Accepted jobId
+    FE->>WS: ai:join jobId
+
+    Q->>WK: Lấy job
+    WK->>WK: Chia chunk theo chương, ~3000 từ + ảnh liên quan
+    WK->>WK: Phân bổ số câu theo độ dài từng chunk
+    par Gọi AI song song, tối đa 3 chunk cùng lúc
+        WK->>AI: Prompt + text chunk 1 + ảnh
+        AI-->>WK: JSON câu hỏi
+    and
+        WK->>AI: Prompt + text chunk 2 + ảnh
+        AI-->>WK: JSON câu hỏi
+    end
+    WK->>WK: Validate schema, loại trùng, retry tối đa 2 lần nếu lỗi
+    WK->>DB: Lưu QUESTION status draft, gắn source_page, image_url
+    WK->>WS: ai:progress
+    WK->>DB: AI_JOB status done hoặc partial
+    WK->>WS: ai:done jobId
+    WS-->>FE: Thông báo hoàn thành
     FE->>BE: GET /api/ai/jobs/:jobId/questions
     BE-->>FE: Danh sách câu nháp
     GV->>FE: Sửa / bỏ chọn / sinh lại
@@ -1211,7 +1317,44 @@ không dùng "Tất cả đều đúng". Trả về DUY NHẤT JSON theo schema:
    "sourcePage": number|null }]
 TÀI LIỆU:
 """{chunk}"""
+HÌNH ẢNH ĐÍNH KÈM: {danh sách ảnh sơ đồ của chunk, kèm số trang}
+Nếu câu hỏi dựa trên một hình, trả thêm "imageRef": <chỉ số ảnh>.
 ```
+
+#### 14.1.4. Chia đoạn (Chunking) cho tài liệu siêu dài
+
+```mermaid
+flowchart TD
+    A["Gói tri thức đã nhận"] --> B["Nhận diện cấu trúc: mục lục, tiêu đề Chương, Bài, slide tiêu đề"]
+    B --> C{"Nhận diện được chương?"}
+    C -- "Có" --> D["Chia theo chương"]
+    C -- "Không" --> E["Chia theo cửa sổ ~3000 từ, chồng lấn 200 từ"]
+    D --> F{"Chương quá dài?"}
+    F -- "Có" --> E
+    F -- "Không" --> G["Chunk hoàn chỉnh"]
+    E --> G
+    G --> H["Gắn ảnh vào chunk theo số trang chứa ảnh"]
+    H --> I["Phân bổ số câu theo số từ + số ảnh của chunk"]
+    I --> J["Map: gọi AI từng chunk song song"]
+    J --> K["Reduce: gộp, loại câu trùng nghĩa, cân bằng độ khó"]
+    K --> L{"Đủ số câu yêu cầu?"}
+    L -- "Thiếu" --> M["Gọi bổ sung trên chunk còn ít câu"]
+    M --> K
+    L -- "Đủ" --> N["Lưu câu hỏi draft"]
+```
+
+#### 14.1.5. Xử lý lỗi & trường hợp đặc biệt
+
+| Tình huống | Cách xử lý |
+|---|---|
+| Máy GV yếu, file rất nặng | Worker xử lý từng trang rồi giải phóng bộ nhớ; hiển thị tiến độ; cho phép hủy |
+| GV đóng tab khi đang xử lý ở trình duyệt | Chưa tạo job trên server → phải chọn lại file |
+| GV đóng tab sau khi đã gửi lên server | Job vẫn chạy nền; mở lại T07 thấy trạng thái job |
+| PDF scan, không có text | Render trang thành ảnh, AI tự OCR |
+| AI trả JSON sai định dạng | Validate (`class-validator`/Zod), retry tối đa 2 lần mỗi chunk |
+| AI lỗi một số chunk | Job `partial`, vẫn cho duyệt phần đã có |
+| Vượt hạn mức gọi AI | Từ chối tạo job, báo số lượt còn lại |
+| File có mật khẩu / hỏng | Báo lỗi ngay tại trình duyệt, không gửi lên server |
 
 ### 14.2. Sinh viên vào phòng bằng PIN và bắt đầu làm bài (đồng bộ đồng hồ)
 
@@ -1472,6 +1615,21 @@ stateDiagram-v2
     disconnected --> finished: Scheduler tự nộp
 ```
 
+### 15.5. Vòng đời AI Job (sinh câu hỏi)
+
+```mermaid
+stateDiagram-v2
+    [*] --> queued: Backend nhận gói tri thức
+    queued --> processing: Worker lấy job
+    processing --> processing: Xong 1 chunk, cập nhật progress
+    processing --> done: Đủ câu hỏi hợp lệ
+    processing --> partial: Một số chunk lỗi sau retry
+    processing --> failed: Lỗi toàn bộ hoặc hết hạn mức
+    partial --> [*]: GV vẫn duyệt được phần đã sinh
+    done --> [*]
+    failed --> queued: GV bấm thử lại
+```
+
 ---
 
 ## 16. THIẾT KẾ CƠ SỞ DỮ LIỆU (ERD)
@@ -1526,7 +1684,12 @@ erDiagram
         string file_name
         int word_count
         json config
-        enum status "processing|done|failed"
+        enum status "queued|processing|done|partial|failed"
+        int progress "0-100"
+        int page_count
+        int image_count
+        int total_chunks
+        int done_chunks
         int generated_count
         string error
         datetime created_at
@@ -1542,6 +1705,7 @@ erDiagram
         enum source "manual|ai"
         enum status "draft|approved|archived"
         int source_page
+        string image_url "ảnh sơ đồ đính kèm"
     }
     QUESTION_OPTION {
         int id PK
@@ -1720,6 +1884,9 @@ erDiagram
 | Server → Client GV | `monitor:progress` | `{attemptId, answered}` | Tiến độ |
 | Server → Client GV | `monitor:violation` | `{attemptId, student, type, duration, severity, count}` | Vi phạm mới |
 | Server → Client GV | `monitor:student_update` | `{attemptId, status}` | Đổi trạng thái (nộp, khóa, mất kết nối) |
+| Client GV → Server | `ai:join` | `{jobId}` | Theo dõi tiến độ job sinh câu hỏi |
+| Server → Client GV | `ai:progress` | `{jobId, progress, doneChunks, totalChunks}` | Cập nhật thanh tiến trình |
+| Server → Client GV | `ai:done` | `{jobId, status, generatedCount}` | Job hoàn thành (`done` / `partial` / `failed`) |
 
 **Socket rooms:** `attempt:{attemptId}` (1 thí sinh) · `room:{roomId}:students` (toàn bộ thí sinh) · `room:{roomId}:proctor` (giảng viên).
 
@@ -1741,7 +1908,7 @@ flowchart LR
         SOCK["NestJS WebSockets Gateway (Socket.IO)"]
         SVC["Modules & Services: Auth, Users, Classes, Questions, AI, Exams, Rooms, Attempts, Proctor, Reports"]
         CRON["Task Scheduling (@nestjs/schedule): mở/đóng phòng, tự nộp bài"]
-        PARSER["pdf-parse · mammoth"]
+        QUEUE["AI Job Queue (BullMQ) + AiWorker: chunking, gọi AI, validate"]
     end
 
     DB[("Database: PostgreSQL (Prisma / TypeORM) hoặc MongoDB (Mongoose)")]
@@ -1754,7 +1921,7 @@ flowchart LR
     API --> MW --> SVC
     SOCK --> SVC
     CRON --> SVC
-    SVC --> PARSER
+    SVC --> QUEUE
     SVC --> DB
     SVC --> CACHE
     SVC --> FILE
@@ -1776,7 +1943,9 @@ flowchart LR
 | Xác thực & Phân quyền | Passport-JWT, Guards (`AuthGuard`, `RolesGuard`), bcrypt, cookie | Lec 9 – Web Security |
 | Bảo mật | Helmet, `@nestjs/throttler` (rate limit), cors, `class-validator`, DOMPurify | Lec 9 – Web Security |
 | AI | `@google/generative-ai` (Gemini API) | Điểm nhấn đề tài |
-| Xử lý file | Multer, `pdf-parse`, `mammoth` | Upload và trích xuất slide bài giảng |
+| Xử lý tài liệu (client) | `pdfjs-dist`, `mammoth`, `jszip`, Web Worker, `OffscreenCanvas` | Tách text, lọc và nén ảnh ngay tại trình duyệt, không giới hạn dung lượng |
+| Hàng đợi tác vụ nền | `@nestjs/bullmq` + Redis (Upstash) | Xử lý job sinh câu hỏi bất đồng bộ, retry |
+| Lưu ảnh | Multer + Cloudinary / Supabase Storage | Lưu ảnh sơ đồ đã nén đính kèm câu hỏi |
 | Lập lịch | `@nestjs/schedule` (Cron jobs) | Tự nộp bài, tự động mở/đóng phòng theo lịch |
 | Xuất file | `exceljs` | Xuất bảng điểm và danh sách vi phạm |
 | Triển khai | Vercel (Frontend) · Render/Railway/Docker (Backend) · Supabase/Neon/Atlas (DB) | Lec 10 – Deployment |
@@ -1872,6 +2041,8 @@ quizguard/
 | R8 | Sai lệch đồng hồ giữa client và server | Thấp | Tính `serverOffset`, đồng bộ lại 60s/lần, server là nguồn chân lý |
 | R9 | Lộ đáp án qua API / DevTools | Cao | Không gửi `is_correct` xuống client, chấm ở server, kiểm tra quyền sở hữu attempt |
 | R10 | Thành viên trễ tiến độ | TB | Họp ngắn 2 lần/tuần, ưu tiên MUST, review PR chéo |
+| R11 | Tài liệu dung lượng rất lớn (hàng trăm MB – GB) | TB | Xử lý tại trình duyệt bằng Web Worker, chỉ gửi gói tri thức đã lọc/nén; hàng đợi nền; chunking map-reduce (mục 14.1) |
+| R12 | Mất tri thức nằm trong hình ảnh, sơ đồ | Cao | Giữ và nén ảnh sơ đồ, gửi kèm AI đa phương thức; trang scan render thành ảnh để OCR |
 
 ---
 
