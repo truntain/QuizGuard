@@ -52,6 +52,8 @@ QuizGuard/
 │   │   ├── modules/     # Auth, Questions, AI, Exams, Rooms, Proctor, Reports...
 │   │   ├── common/      # Guards, Interceptors, Pipes, Filters
 │   │   └── jobs/        # Task cron jobs (tự nộp bài, đóng phòng)
+├── docs/
+│   └── upload-pipeline.md  # Thiết kế chi tiết upload & xử lý tài liệu cho AI
 ├── Overview.md          # Đặc tả chi tiết phân tích & thiết kế kiến trúc hệ thống
 └── README.md            # Tài liệu giới thiệu dự án
 ```
