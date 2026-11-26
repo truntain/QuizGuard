@@ -1,0 +1,338 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  teacher
+  admin
+}
+
+enum UserStatus {
+  active
+  pending
+  locked
+}
+
+enum AiJobStatus {
+  queued
+  processing
+  done
+  partial
+  failed
+}
+
+enum QuestionType {
+  single
+  multiple
+}
+
+enum Difficulty {
+  easy
+  medium
+  hard
+}
+
+enum QuestionSource {
+  manual
+  ai
+}
+
+enum QuestionStatus {
+  draft
+  approved
+  archived
+}
+
+enum RoomStatus {
+  draft
+  scheduled
+  open
+  closed
+  published
+  cancelled
+}
+
+enum ResultVisibility {
+  none
+  score
+  full
+}
+
+enum AttemptStatus {
+  in_progress
+  locked
+  submitted
+  auto_submitted
+  graded
+}
+
+enum CheatType {
+  TAB_HIDDEN
+  WINDOW_BLUR
+  EXIT_FULLSCREEN
+  COPY
+  PASTE
+  CONTEXTMENU
+  BLOCKED_SHORTCUT
+  MULTI_SESSION
+  DISCONNECT
+}
+
+enum CheatSeverity {
+  low
+  medium
+  high
+}
+
+model User {
+  id           Int        @id @default(autoincrement())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  fullName     String     @map("full_name")
+  studentCode  String?    @map("student_code")
+  avatarUrl    String?    @map("avatar_url")
+  role         UserRole   @default(student)
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  classesOwned  Class[]        @relation("TeacherClasses")
+  classMembers  ClassMember[]
+  aiJobs        AiJob[]
+  questions     Question[]
+  exams         Exam[]
+  rooms         Room[]
+  attempts      Attempt[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Class {
+  id         Int      @id @default(autoincrement())
+  teacherId  Int      @map("teacher_id")
+  name       String
+  courseCode String?  @map("course_code")
+  semester   String?
+  joinCode   String   @unique @map("join_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  teacher User          @relation("TeacherClasses", fields: [teacherId], references: [id], onDelete: Cascade)
+  members ClassMember[]
+  rooms   Room[]
+
+  @@map("classes")
+}
+
+model ClassMember {
+  classId   Int      @map("class_id")
+  studentId Int      @map("student_id")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([classId, studentId])
+  @@map("class_members")
+}
+
+model AiJob {
+  id             Int         @id @default(autoincrement())
+  teacherId      Int         @map("teacher_id")
+  fileName       String      @map("file_name")
+  wordCount      Int         @default(0) @map("word_count")
+  config         Json
+  status         AiJobStatus @default(queued)
+  progress       Int         @default(0)
+  pageCount      Int         @default(0) @map("page_count")
+  imageCount     Int         @default(0) @map("image_count")
+  totalChunks    Int         @default(0) @map("total_chunks")
+  doneChunks     Int         @default(0) @map("done_chunks")
+  generatedCount Int         @default(0) @map("generated_count")
+  error          String?
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  teacher   User       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@index([teacherId])
+  @@map("ai_jobs")
+}
+
+model Question {
+  id          Int            @id @default(autoincrement())
+  ownerId     Int            @map("owner_id")
+  aiJobId     Int?           @map("ai_job_id")
+  content     String
+  type        QuestionType   @default(single)
+  difficulty  Difficulty     @default(medium)
+  explanation String?
+  source      QuestionSource @default(manual)
+  status      QuestionStatus @default(approved)
+  sourcePage  Int?           @map("source_page")
+  imageUrl    String?        @map("image_url")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  owner         User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  aiJob         AiJob?           @relation(fields: [aiJobId], references: [id], onDelete: SetNull)
+  options       QuestionOption[]
+  tags          Tag[]
+  examQuestions ExamQuestion[]
+
+  @@index([ownerId, status])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         Int     @id @default(autoincrement())
+  questionId Int     @map("question_id")
+  content    String
+  isCorrect  Boolean @default(false) @map("is_correct")
+  orderIndex Int     @default(0) @map("order_index")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+model Tag {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  questions Question[]
+
+  @@map("tags")
+}
+
+model Exam {
+  id          Int      @id @default(autoincrement())
+  ownerId     Int      @map("owner_id")
+  title       String
+  description String?
+  totalPoints Decimal  @default(10) @map("total_points") @db.Decimal(5, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner     User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  questions ExamQuestion[]
+  rooms     Room[]
+
+  @@index([ownerId])
+  @@map("exams")
+}
+
+model ExamQuestion {
+  examId     Int     @map("exam_id")
+  questionId Int     @map("question_id")
+  orderIndex Int     @default(0) @map("order_index")
+  points     Decimal @default(1) @db.Decimal(5, 2)
+
+  exam     Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@id([examId, questionId])
+  @@map("exam_questions")
+}
+
+model Room {
+  id               Int              @id @default(autoincrement())
+  examId           Int              @map("exam_id")
+  classId          Int?             @map("class_id")
+  ownerId          Int              @map("owner_id")
+  title            String
+  pin              String           @db.VarChar(6)
+  durationMinutes  Int              @map("duration_minutes")
+  openAt           DateTime?        @map("open_at")
+  closeAt          DateTime?        @map("close_at")
+  status           RoomStatus       @default(draft)
+  examSnapshot     Json             @map("exam_snapshot")
+  proctorConfig    Json             @map("proctor_config")
+  shuffleQuestions Boolean          @default(true) @map("shuffle_questions")
+  shuffleOptions   Boolean          @default(true) @map("shuffle_options")
+  resultVisibility ResultVisibility @default(score) @map("result_visibility")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  exam     Exam      @relation(fields: [examId], references: [id], onDelete: Restrict)
+  class    Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  owner    User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  attempts Attempt[]
+
+  @@index([pin, status])
+  @@index([ownerId])
+  @@map("rooms")
+}
+
+model Attempt {
+  id             Int           @id @default(autoincrement())
+  roomId         Int           @map("room_id")
+  studentId      Int           @map("student_id")
+  startedAt      DateTime      @default(now()) @map("started_at")
+  deadline       DateTime
+  submittedAt    DateTime?     @map("submitted_at")
+  status         AttemptStatus @default(in_progress)
+  violationCount Int           @default(0) @map("violation_count")
+  score          Decimal?      @db.Decimal(5, 2)
+  correctCount   Int?          @map("correct_count")
+  shuffleSeed    Int           @map("shuffle_seed")
+  ip             String?
+  userAgent      String?       @map("user_agent")
+
+  room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  student   User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers   Answer[]
+  cheatLogs CheatLog[]
+
+  @@unique([roomId, studentId])
+  @@index([status, deadline])
+  @@map("attempts")
+}
+
+model Answer {
+  attemptId       Int      @map("attempt_id")
+  questionId      Int      @map("question_id")
+  selectedOptions Json     @map("selected_options")
+  isCorrect       Boolean? @map("is_correct")
+  pointsEarned    Decimal? @map("points_earned") @db.Decimal(5, 2)
+  savedAt         DateTime @default(now()) @map("saved_at")
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@id([attemptId, questionId])
+  @@map("answers")
+}
+
+model CheatLog {
+  id            Int           @id @default(autoincrement())
+  attemptId     Int           @map("attempt_id")
+  type          CheatType
+  durationMs    Int?          @map("duration_ms")
+  questionIndex Int?          @map("question_index")
+  severity      CheatSeverity @default(low)
+  occurredAt    DateTime      @default(now()) @map("occurred_at")
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, occurredAt])
+  @@map("cheat_logs")
+}

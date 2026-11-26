@@ -53,6 +53,7 @@ QuizGuard/
 │   │   ├── common/      # Guards, Interceptors, Pipes, Filters
 │   │   └── jobs/        # Task cron jobs (tự nộp bài, đóng phòng)
 ├── docs/
+│   ├── database-setup.md   # Hướng dẫn cài đặt PostgreSQL & Prisma cho thành viên nhóm
 │   └── upload-pipeline.md  # Thiết kế chi tiết upload & xử lý tài liệu cho AI
 ├── Overview.md          # Đặc tả chi tiết phân tích & thiết kế kiến trúc hệ thống
 └── README.md            # Tài liệu giới thiệu dự án
@@ -62,36 +63,32 @@ QuizGuard/
 
 ## 💻 Hướng dẫn cài đặt & Khởi chạy cục bộ
 
-### 1. Yêu cầu môi trường
+### 1. Yêu cầu môi trường & Khởi tạo Database
 - [Node.js](https://nodejs.org/) (phiên bản v18 trở lên, khuyên dùng v20+)
 - [PostgreSQL](https://www.postgresql.org/) (cơ sở dữ liệu)
-- Trình quản lý gói `npm` (hoặc `pnpm` / `yarn`)
+- Trình quản lý gói `npm`
 
-### 2. Cài đặt & chạy Frontend (Next.js)
+👉 **Thành viên mới xem hướng dẫn tạo Database `quizguard` và nạp dữ liệu mẫu từ A–Z tại:** **[docs/database-setup.md](./docs/database-setup.md)**
+
+### 2. Cài đặt & chạy Backend (NestJS)
 ```bash
-# Di chuyển vào thư mục frontend
-cd frontend
-
-# Cài đặt thư viện phụ thuộc
+cd backend
+cp .env.example .env      # (Windows CMD/PowerShell: copy .env.example .env)
 npm install
+npm run db:migrate        # Tạo toàn bộ 14 bảng vào PostgreSQL
+npm run db:seed           # Nạp 4 tài khoản mẫu (mật khẩu: 123456)
+npm run start:dev
+```
+Backend API server sẽ chạy tại: **`http://localhost:3001/api`**.
 
-# Khởi chạy dev server
+### 3. Cài đặt & chạy Frontend (Next.js)
+```bash
+cd frontend
+cp .env.example .env.local # (Windows CMD/PowerShell: copy .env.example .env.local)
+npm install
 npm run dev
 ```
 Giao diện người dùng sẽ chạy tại: **`http://localhost:3000`**
-
-### 3. Cài đặt & chạy Backend (NestJS)
-```bash
-# Mở một terminal khác, di chuyển vào thư mục backend
-cd backend
-
-# Cài đặt thư viện phụ thuộc
-npm install
-
-# Khởi chạy server ở chế độ dev (watch mode)
-npm run start:dev
-```
-Backend API server sẽ chạy tại: **`http://localhost:3001`** (hoặc port được cấu hình trong file `.env`).
 
 ---
 

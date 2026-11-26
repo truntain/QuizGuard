@@ -14,9 +14,15 @@ describe('AppController', () => {
     appController = app.get<AppController>(AppController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+  describe('health & time', () => {
+    it('should return ok status', () => {
+      const health = appController.getHealth();
+      expect(health.status).toBe('ok');
+    });
+
+    it('should return serverNow ISO timestamp', () => {
+      const time = appController.getServerTime();
+      expect(typeof time.serverNow).toBe('string');
     });
   });
 });
